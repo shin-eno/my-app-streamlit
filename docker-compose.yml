@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
+    networks:
+      - app-network
+
+  backend:
+    build: ./backend
+    container_name: my-app-backend
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+    environment:
+#      DATABASE_URL: "host=db port=5432 dbname=mydb user=user password=pass"
+      DATABASE_URL: "postgresql://user:pass@db:5432/mydb"
+
+      # Flaskをデバッグモードにする（これでホットリロードが有効になります）
+      FLASK_ENV: development
+      FLASK_DEBUG: "1"
+
+    ports:
+      - "5000:5000"
+    networks:
+      - app-network
+
+  frontend:
+    build: ./frontend
+    container_name: my-app-frontend
+    # ローカルの ./frontend と コンテナの /app を同期
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+    ports:
+      - "8501:8501"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
