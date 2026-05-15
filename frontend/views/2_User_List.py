@@ -35,7 +35,8 @@ try:
             df = df.rename(columns=rename_dict)
             
             # 表示
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width='stretch')
+            
             st.info(f"現在登録されている有効なユーザー数: {len(df)}名")
         else:
             st.write("登録されているユーザーはいません。")

@@ -1,86 +1,76 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-from psycopg2.extras import RealDictCursor
-
 import psycopg2
+from psycopg2.extras import RealDictCursor
 import bcrypt
-
 import os
-import datetime
-import time
-
 
 app = Flask(__name__)
-# Streamlitコンテナからのアクセスを許可するためにCORSを設定
-CORS(app)
 
-# 環境変数から接続情報を取得（設定がない場合のデフォルト値も指定）
-#DATABASE_URL = os.environ.get('DATABASE_URL', "host=db port=5432 dbname=mydb user=user password=pass")
-DATABASE_URL = os.environ.get(
-    'DATABASE_URL', 
-    "postgresql://user:pass@db:5432/mydb"
-)
-
-#----- テスト用の接続ロジック開始 -----
 def get_db_connection():
-    """DBが起動するまでリトライしながら接続を試みる"""
-    retries = 5
-    while retries > 0:
-        try:
-            conn = psycopg2.connect(DATABASE_URL)
-            return conn
-        except psycopg2.OperationalError as e:
-            retries -= 1
-            print(f"DB起動待ち... あと {retries} 回試行します: {e}")
-            time.sleep(2)  # 2秒待機
-    raise Exception("DBへの接続に失敗しました")
+    # Docker環境の変数を使用
+    return psycopg2.connect(
+        host=os.environ.get('DB_HOST', 'db'),
+        database=os.environ.get('DB_NAME', 'mydb'),
+        user=os.environ.get('DB_USER', 'user'),
+        password=os.environ.get('DB_PASSWORD', 'pass')
+    )
 
-
-#
-# システムのステータスと現在時刻を返す簡単なAPI
-#
-@app.route('/api/status', methods=['GET'])
-def get_status():
-    """
-    システムのステータスと現在時刻を返す簡単なAPI
-    """
-    return jsonify({
-        "status": "online",
-        "message": "Flask Backend is running smoothly!",
-        "server_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
-
-
-#
-# テスト用DB接続確認
-#
-@app.route('/api/db-check', methods=['GET'])
-def db_check():
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json
+    u_id = data.get('user_id')
+    password = data.get('password')
+    
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        # 疎通確認のためのクエリ実行
-        cur.execute('SELECT version();')
-
-        db_version = cur.fetchone()
+        # 1. ユーザーを検索（論理削除されていないもの）
+        cur.execute("SELECT * FROM users WHERE user_id = %s AND delete_flg = FALSE", (u_id,))
+        user = cur.fetchone()
+        
+        # 2. パスワード検証
+        if user and bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+            is_admin = user['administrator_flg']
+            
+            # 3. 重要：menu_permissionsテーブルからアクセス可能なページリストを取得[cite: 3, 4]
+            query = """
+                SELECT
+                    page_title,
+                    file_path,
+                    icon,
+                    section_name 
+                FROM
+                    menu_permissions 
+                WHERE
+                    deleted_at IS NULL 
+                    """
+            # 管理者でない場合は、管理者専用ページを除外
+            if not is_admin:
+                query += " AND is_admin_only = FALSE "
+            query += " ORDER BY display_order ASC"
+            
+            cur.execute(query)
+            pages = cur.fetchall() # ここで pages を取得
+            
+            # 4. レスポンスを返却（'pages' キーを含める）[cite: 6]
+            return jsonify({
+                "message": "ログイン成功",
+                "user": {
+                    "user_id": user['user_id'],
+                    "user_name": user['user_name'],
+                    "is_admin": is_admin
+                },
+                "pages": pages  # ← これが不足していたためエラーが出ていました
+            }), 200
+        else:
+            return jsonify({"message": "IDまたはパスワードが違います"}), 401
+    except Exception as e:
+        return jsonify({"message": f"サーバーエラー: {str(e)}"}), 500
+    finally:
         cur.close()
         conn.close()
-        return jsonify({
-            "status": "connected",
-            "database": "PostgreSQL",
-            "version": db_version
-        })
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
 
-# --- DB接続関数 ---
-def get_db_connection():
-    return psycopg2.connect(os.environ.get('DATABASE_URL'))
-
-#----- テスト用の接続ロジック終了 -----
 
 #
 # ユーザ登録
@@ -101,7 +91,12 @@ def register():
     try:
         cur.execute(
             """
-            INSERT INTO users (user_id, user_name, mail_address, password_hash)
+            INSERT INTO users (
+                            user_id, 
+                            user_name, 
+                            mail_address, 
+                            password_hash
+                            )
             VALUES (%s, %s, %s, %s)
             """,
             (user_id, user_name, mail, hashed_pw)
@@ -116,106 +111,86 @@ def register():
         conn.close()
 
 #
-# ユーザリスト出力
+# ユーザ一覧出力
 #
 @app.route('/api/users', methods=['GET'])
 def get_users():
     try:
         conn = get_db_connection()
-        # RealDictCursorを使うと、結果を辞書形式（列名付き）で取得できて便利です
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        cur.execute("""
-            SELECT id, user_id, user_name, mail_address, administrator_flg, delete_flg, created_at 
-            FROM users 
-            WHERE delete_flg = FALSE
-            ORDER BY id ASC
-        """)
-        
+
+        # 削除されていないユーザーを全件取得[cite: 5]
+        cur.execute("SELECT " \
+        "               user_id, " \
+        "               user_name, " \
+        "               administrator_flg, " \
+        "               created_at" \
+        "           FROM " \
+        "               users" \
+        "           WHERE " \
+        "               delete_flg = FALSE" \
+        "           ORDER BY created_at DESC"
+        )
         users = cur.fetchall()
-        cur.close()
-        conn.close()
+
         return jsonify(users), 200
+    
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"message": f"ユーザー取得エラー: {str(e)}"}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 
 #
-# ユーザ削除
+# ユーザー削除
 #
-@app.route('/api/users/<u_id>', methods=['DELETE'])
-def delete_user(u_id):
+@app.route('/api/users/<user_id>', methods=['DELETE'])
+def delete_user_v2(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # delete_flgをTRUEに更新
-        cur.execute(
-            "UPDATE users SET delete_flg = TRUE, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s",
-            (u_id,)
-        )
+        # 1. ユーザーの存在確認
+        cur.execute("SELECT" \
+        "               user_id" \
+        "            FROM" \
+        "               users" \
+        "           WHERE" \
+        "               user_id = %s", (user_id,)
+                    )
+
+        if not cur.fetchone():
+            return jsonify({"status": "error", "message": "ユーザーが見つかりません"}), 404
+
+        # 2. 論理削除（delete_flgとdeleted_atの両方を更新）
+        cur.execute("""
+            UPDATE
+                users 
+            SET
+                delete_flg = TRUE, 
+                deleted_at = CURRENT_TIMESTAMP 
+            WHERE
+                user_id = %s
+            """, (user_id,))
+
         conn.commit()
-        
-        if cur.rowcount == 0:
-            return jsonify({"error": "ユーザーが見つかりません"}), 404
-            
-        cur.close()
-        conn.close()
-        return jsonify({"message": f"ユーザー {u_id} を削除しました"}), 200
+        return jsonify({
+            "status": "success", 
+            "message": f"ユーザー {user_id} を削除しました"
+        }), 200
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-#
-# ログイン処理
-#
-
-@app.route('/api/login', methods=['POST'])
-def login():
-    data = request.json
-    u_id = data.get('user_id')
-    password = data.get('password')
-
-    if not u_id or not password:
-        return jsonify({"error": "IDとパスワードを入力してください"}), 400
-
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # 有効なユーザー（delete_flg = FALSE）のみ取得
-        cur.execute(
-            "SELECT user_id, user_name, password_hash, administrator_flg FROM users WHERE user_id = %s AND delete_flg = FALSE",
-            (u_id,)
-        )
-        user = cur.fetchone()
+        if conn:
+            conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
         cur.close()
         conn.close()
 
-        if user and bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
-            # パスワード一致！
-            # 本来はここでJWTなどを返しますが、まずはシンプルにユーザー情報を返します
-            return jsonify({
-                "message": "ログイン成功",
-                "user": {
-                    "user_id": user['user_id'],
-                    "user_name": user['user_name'],
-                    "is_admin": user['administrator_flg']
-                }
-            }), 200
-        else:
-            return jsonify({"error": "ユーザーIDまたはパスワードが正しくありません"}), 401
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-
+#
+# flask実行
+#
 if __name__ == '__main__':
-    # Dockerコンテナ外（Streamlit側）から接続可能にするため 0.0.0.0 で起動
-    #app.run(host='0.0.0.0', port=5000)
-
-    # debug=True にすることでホットリロードが有効になります
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
+    app.run(host='0.0.0.0', port=5000)
 
