@@ -4,6 +4,12 @@ from psycopg2.extras import RealDictCursor
 import bcrypt
 import os
 
+import secrets
+from datetime import datetime, timedelta
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 app = Flask(__name__)
 
 def get_db_connection():
@@ -110,6 +116,44 @@ def register():
         cur.close()
         conn.close()
 
+@app.route('/api/users/change-password', methods=['POST'])
+def change_password():
+    data = request.json
+    u_id = data.get('user_id')
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+    
+    if not all([u_id, current_password, new_password]):
+        return jsonify({"message": "入力項目が不足しています"}), 400
+        
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # 1. 現在のユーザー情報を取得
+        cur.execute("SELECT password_hash FROM users WHERE user_id = %s AND delete_flg = FALSE", (u_id,))
+        user = cur.fetchone()
+        
+        if not user or not bcrypt.checkpw(current_password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+            return jsonify({"message": "現在のパスワードが正しくありません"}), 401
+            
+        # 2. 新しいパスワードをハッシュ化して更新
+        new_password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cur.execute("""
+            UPDATE users 
+            SET password_hash = %s, updated_at = CURRENT_TIMESTAMP 
+            WHERE user_id = %s
+        """, (new_password_hash, u_id))
+        
+        conn.commit()
+        return jsonify({"message": "パスワードを更新しました"}), 200
+        
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({"message": f"エラーが発生しました: {str(e)}"}), 500
+    finally:
+        cur.close()
+        conn.close()
+
 #
 # ユーザ一覧出力
 #
@@ -187,6 +231,134 @@ def delete_user_v2(user_id):
         cur.close()
         conn.close()
 
+
+# トークン発行とメール送信API
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.json
+    u_id = data.get('user_id')
+    
+    # 本来はここでユーザーのメールアドレスをDBから取得します
+    # 今回は構成上、簡易的に処理します
+    
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now() + timedelta(minutes=30)
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # トークンを保存（既存のトークンがあれば上書き）
+        cur.execute("""
+            INSERT INTO password_resets (user_id, token, expires_at)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at
+        """, (u_id, token, expires_at))
+        conn.commit()
+        
+        # メール送信（設定は環境に合わせて調整してください）
+        # ※ 実際にはフロントエンドのURL（http://localhost:8501/reset_password?token=...）を送ります
+        send_reset_email("user@example.com", token)
+        
+        return jsonify({"message": "再設定メールを送信しました"}), 200
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+#
+# リセットメール送信
+#
+def send_reset_email(to_email, token):
+    # 送信元・先の設定
+    smtp_server = "mailpit" # コンテナ名
+    smtp_port = 1025
+    sender_email = "system@example.com"
+    
+    # リセットURLの構築（FrontendのURL）
+    reset_url = f"http://localhost:8501/?token={token}"
+    
+    # メールの作成
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = to_email
+    message["Subject"] = "【重要】パスワード再設定のご案内"
+    
+    body = f"""
+    パスワード再設定のリクエストを受け付けました。
+    以下のリンクをクリックして、30分以内に新しいパスワードを設定してください。
+
+    {reset_url}
+
+    ※心当たりがない場合は、このメールを破棄してください。
+    """
+    message.attach(MIMEText(body, "plain"))
+    
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.sendmail(sender_email, to_email, message.as_string())
+        print(f"Mail sent to {to_email} via Mailpit")
+    except Exception as e:
+        print(f"Mail error: {e}")
+
+
+#
+# パスワードリセット処理
+#
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json(silent=True) or {}
+    token = data.get('token')
+    new_password = data.get('new_password')
+    
+    if not token or not new_password:
+        return jsonify({"message": "必要な情報が不足しています"}), 400
+        
+    conn = get_db_connection()
+    cur = conn.cursor() # ※もしDictCursor等を使っている場合は、以下を適宜調整してください
+    try:
+        # 1. トークンが password_resets テーブルに存在するか確認
+        cur.execute("""
+            SELECT user_id, expires_at 
+            FROM password_resets 
+            WHERE token = %s
+        """, (token,))
+        row = cur.fetchone()
+        
+        if not row:
+            return jsonify({"message": "トークンが無効であるか、既に使われています"}), 400
+            
+        # タプルのインデックス、または辞書のキーで取得
+        user_id = row[0] if isinstance(row, tuple) else row['user_id']
+        expires_at = row[1] if isinstance(row, tuple) else row['expires_at']
+        
+        # 2. 有効期限のチェック（現在時刻を過ぎていたらNG）
+        if expires_at < datetime.now():
+            cur.execute("DELETE FROM password_resets WHERE token = %s", (token,))
+            conn.commit()
+            return jsonify({"message": "トークンの有効期限（30分）が切れています"}), 400
+
+        # 3. 新しいパスワードをハッシュ化して users テーブルを更新
+        new_password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cur.execute("""
+            UPDATE users 
+            SET password_hash = %s, updated_at = CURRENT_TIMESTAMP 
+            WHERE user_id = %s
+        """, (new_password_hash, user_id))
+        
+        # 4. セキュリティのため、使用済みのトークンをテーブルから削除
+        cur.execute("DELETE FROM password_resets WHERE token = %s", (token,))
+        
+        conn.commit()
+        return jsonify({"message": "パスワードを正常に更新しました"}), 200
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"message": f"サーバーエラーが発生しました: {str(e)}"}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 #
 # flask実行

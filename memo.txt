@@ -1,1 +1,0 @@
-アクセスURL：http://localhost:8501/

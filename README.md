@@ -13,3 +13,9 @@ info: please complete authentication in your browser...
 # 初期構築時のセットアップ
 docker exec -it my-app-backend python setup_admin.py
 
+# webアクセスURL
+アクセスURL：http://localhost:8501/
+
+# 検証用メール
+アクセスURL：http://localhost:8025
+

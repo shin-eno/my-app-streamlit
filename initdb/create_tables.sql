@@ -39,3 +39,14 @@ CREATE TABLE IF NOT EXISTS menu_permissions (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP
 );
+
+--
+--　パスワードリセット管理情報
+-- 
+CREATE TABLE password_resets (
+    user_id VARCHAR(5) NOT NULL,
+    token TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);

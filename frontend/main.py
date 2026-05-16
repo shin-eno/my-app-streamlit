@@ -9,7 +9,9 @@ if 'user_info' not in st.session_state:
 if 'user_pages' not in st.session_state:
     st.session_state.user_pages = []
 
+#
 # 2. ログイン画面の定義
+#
 def login_screen():
     st.title("🔐 業務システム ログイン")
     u_id = st.text_input("ユーザーID", max_chars=5)
@@ -36,38 +38,95 @@ def login_screen():
             # ここで 'pages' という文字列のエラー（KeyError）が出ていたのを修正
             st.error(f"接続エラーまたはデータ処理エラー: {e}")
 
-# 3. ページオブジェクトの構築
+    st.markdown("---") # 区切り線
+    if st.button("パスワードを忘れた方はこちら", width='stretch'):
+        show_forgot_password_dialog()
+
+    pass
+
+
+#
+# メールアドレス入力用のダイアログを表示する関数
+#
+@st.dialog("パスワード再設定の請求")
+def show_forgot_password_dialog():
+    st.write("登録されているユーザーIDを入力してください。再設定用のリンクをメールで送信します。")
+    target_id = st.text_input("ユーザーID (5桁)")
+    
+    if st.button("再設定メールを送信", width='stretch'):
+        if target_id:
+            try:
+                # バックエンドの forgot-password APIを叩く
+                res = requests.post("http://backend:5000/api/auth/forgot-password", 
+                                    json={"user_id": target_id})
+                if res.status_code == 200:
+                    st.success("Mailpit（または登録メール）を確認してください。")
+                else:
+                    st.error("送信に失敗しました。IDが正しいか確認してください。")
+            except Exception as e:
+                st.error(f"システムエラー: {e}")
+        else:
+            st.warning("ユーザーIDを入力してください。")
+
+    pass
+
+#
+# 3. ページオブジェクトの構築（メインロジック）
+#
+
+# ログインページオブジェクト
 login_page = st.Page(login_screen, title="ログイン", icon="🔐")
 
-if st.session_state.logged_in:
-    menu_structure = {}
-    
-    if st.session_state.user_pages:
-        for p in st.session_state.user_pages:
-            section = p.get('section_name') or "メイン"
-            # DBのデータに基づき構築
-            page_obj = st.Page(p['file_path'], title=p['page_title'], icon=p['icon'])
-            
-            if section not in menu_structure:
-                menu_structure[section] = []
-            menu_structure[section].append(page_obj)
-        
-        pg = st.navigation(menu_structure)
-    else:
-        st.error("表示可能なページがありません。")
-        if st.sidebar.button("ログイン画面に戻る", width='stretch'):
-            st.session_state.logged_in = False
-            st.rerun()
-        pg = st.navigation([login_page])
-else:
-    pg = st.navigation([login_page])
+# 再設定ページオブジェクトの定義
+reset_page = st.Page("views/4_Reset_Password.py", title="パスワード再設定")
 
-# 4. 実行とログアウト処理
+# URLからトークンを正しく取得する
+token = st.query_params.get("token")
+
+
+# =========================================================
+# 4. ナビゲーションの動的制御
+# =========================================================
 if st.session_state.logged_in:
+    # --- 【パターンA】ログイン済みの時 ---
+    menu_structure = {}
+    for p in st.session_state.user_pages:
+        section = p.get('section_name') or "メイン"
+        # ファイルパス、タイトル、アイコンをDBの設定から読み込んで動的に生成
+        page_obj = st.Page(p['file_path'], title=p['page_title'], icon=p['icon'])
+        if section not in menu_structure:
+            menu_structure[section] = []
+        menu_structure[section].append(page_obj)
+        
+    pg = st.navigation(menu_structure)
+    
+    # 共通サイドバーにログアウトボタンを配置
     if st.sidebar.button("ログアウト", width='stretch'):
         st.session_state.logged_in = False
         st.session_state.user_info = {}
         st.session_state.user_pages = []
         st.rerun()
 
+elif token:
+    # --- 【パターンB】未ログインだがメールのリンク（トークンあり）からアクセスした時 ---
+    # ★ここが最重要です。これによってStreamlitに公式ルートとして再設定画面を認めさせます。
+    pg = st.navigation([reset_page])
+
+else:
+    # --- 【パターンC】通常のアクセス（未ログイン・トークンなし）の時 ---
+    pg = st.navigation([login_page])
+
+
+# =========================================================
+# 5. アプリケーションの実行
+# =========================================================
+# ★必ずインデントをつけずに（一番左端の階層で）最後に実行します
 pg.run()
+
+# ★ pg.run() の後にトースト表示処理を追加します
+if st.session_state.get("password_reset_success"):
+    # トースト通知を表示（アイコンも指定できます）
+    st.toast("パスワードを正常に更新しました！新しいパスワードでログインしてください。", icon="🎉")
+    
+    # 一度表示したら、次回リロード時に出ないようにフラグを消去
+    del st.session_state.password_reset_success

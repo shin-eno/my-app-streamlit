@@ -18,6 +18,7 @@ services:
   backend:
     build: ./backend
     container_name: my-app-backend
+    restart: always
     volumes:
       - ./backend:/app
     depends_on:
@@ -38,6 +39,7 @@ services:
   frontend:
     build: ./frontend
     container_name: my-app-frontend
+    restart: always
     # ローカルの ./frontend と コンテナの /app を同期
     volumes:
       - ./frontend:/app
@@ -45,8 +47,27 @@ services:
       - backend
     ports:
       - "8501:8501"
+    # 検証用に追加 start 
+    environment:
+      - PYTHONUNBUFFERED=1
+    tty: true
+    # 検証用に追加 end
     networks:
       - app-network
+
+
+  #
+  # 開発デバッグ用
+  # 
+  mailpit:
+      image: axllent/mailpit
+      container_name: mailpit
+      restart: always
+      ports:
+        - "1025:1025" # SMTPサーバー（プログラムからの送信先）
+        - "8025:8025" # Web管理画面（ブラウザでメールを確認する用）
+      networks:
+        - app-network
 
 networks:
   app-network:
