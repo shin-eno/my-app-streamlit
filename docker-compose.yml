@@ -18,6 +18,7 @@ services:
   backend:
     build: ./backend
     container_name: my-app-backend
+    command: flask run --host=0.0.0.0 --port=5000
     restart: always
     volumes:
       - ./backend:/app
@@ -28,13 +29,13 @@ services:
     environment:
 #      DATABASE_URL: "host=db port=5432 dbname=mydb user=user password=pass"
       DATABASE_URL: "postgresql://user:pass@db:5432/mydb"
-      GEMINI_API_KEY: "AIzaSyAEzJH7K8IlgtXc0n1TFupAwIhdPtbSC2M"
+      GEMINI_API_KEY: "google-api-key" # githubにあげるとセキュリティの観点で問題が発生するため
       DRIVE_FOLDER_ID: "1obk9WiQP14WxI__4_eOC0d4Yn2ymoQMb"
       GOOGLE_CREDENTIALS_PATH: "/app/credentials.json"
       GOOGLE_TOKEN_PATH: "/app/token.json"
       # Flaskをデバッグモードにする（これでホットリロードが有効になります）
       FLASK_ENV: development
-      FLASK_DEBUG: "1"
+      FLASK_DEBUG: "1"                                            # 開発時は 1 (有効)、本番時は 0 にする
 
     ports:
       - "5000:5000"
