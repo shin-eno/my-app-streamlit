@@ -29,6 +29,9 @@ services:
 #      DATABASE_URL: "host=db port=5432 dbname=mydb user=user password=pass"
       DATABASE_URL: "postgresql://user:pass@db:5432/mydb"
       GEMINI_API_KEY: "AIzaSyAEzJH7K8IlgtXc0n1TFupAwIhdPtbSC2M"
+      DRIVE_FOLDER_ID: "1obk9WiQP14WxI__4_eOC0d4Yn2ymoQMb"
+      GOOGLE_CREDENTIALS_PATH: "/app/credentials.json"
+      GOOGLE_TOKEN_PATH: "/app/token.json"
       # Flaskをデバッグモードにする（これでホットリロードが有効になります）
       FLASK_ENV: development
       FLASK_DEBUG: "1"

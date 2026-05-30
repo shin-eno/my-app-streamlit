@@ -105,7 +105,15 @@ if __name__ == '__main__':
 スクリプトを実行します。
 
 Bash
+
+# 開発環境でdocker側で実行するとポートが開放されていないため、エラーになる。 
+# docker exec -it my-app-backend python generate_token.py
+# そのため、ローカル側で実行すること！　
+# 以下インポートは必要
+# 　pip install google-auth-oauthlib
 python generate_token.py
+
+
 ブラウザが自動起動し、Google のログイン画面が開きます。Step 2-1 でテストユーザーに登録した Gmail アカウント を選択します。
 
 「このアプリは Google により検証されていません」という警告画面が出た場合は、「詳細」 > 「〜〜（安全ではないページ）に移動」 をクリックします。

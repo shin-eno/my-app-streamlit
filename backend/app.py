@@ -24,14 +24,29 @@ from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 
+# -------------------------------------------------------------
+# 環境変数の厳格なチェック（固定値は一切持たせない）
+# -------------------------------------------------------------
+DRIVE_FOLDER_ID = os.environ.get('DRIVE_FOLDER_ID')
+if not DRIVE_FOLDER_ID:
+    print("【CRITICAL ERROR】環境変数 'DRIVE_FOLDER_ID' が設定されていません。", file=sys.stderr)
+    raise ValueError("Missing required environment variable: DRIVE_FOLDER_ID")
+
 def get_db_connection():
+    # DATABASE_URLがあればそれを使用し、なければ個別の環境変数（デフォルト値付き）で接続する
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url:
+        return psycopg2.connect(db_url)
+
     # Docker環境の変数を使用
     return psycopg2.connect(
-        host=os.environ.get('DB_HOST', 'db'),
-        database=os.environ.get('DB_NAME', 'mydb'),
-        user=os.environ.get('DB_USER', 'user'),
-        password=os.environ.get('DB_PASSWORD', 'pass')
+        host=os.environ['DB_HOST'],
+        database=os.environ['DB_NAME'],
+        user=os.environ['DB_USER'],
+        password=os.environ['DB_PASSWORD']
     )
+
+
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -401,9 +416,6 @@ def resize_image_bytes(image_bytes, max_size=2000):
     return output.getvalue()
 
 
-# Google Drive 保存先フォルダID
-DRIVE_FOLDER_ID = '1obk9WiQP14WxI__4_eOC0d4Yn2ymoQMb'
-DRIVE_FOLDER_ID = '1UXhq8D93SXw8-rHjpvC7Xf99LSiT6I8T'    # 検証
 
 # 一時ファイルを保存するディレクトリ
 UPLOAD_FOLDER = '/tmp/receipt_uploads'
@@ -471,7 +483,7 @@ def upload_receipt():
         # ４．OAuth 2.0 クライアント認証（token.json ）を使用してGoogle Driveへ
         # アップロードし、アップロード後のdriveIdを取得する
         drive_file_id = None
-        token_path = '/app/token.json'
+        token_path = os.environ.get('GOOGLE_TOKEN_PATH', '/app/token.json')
         
         if os.path.exists(token_path):
             SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -564,9 +576,11 @@ def run_batch():
         gemini_api_key = os.environ.get('GEMINI_API_KEY')
         client = genai.Client(api_key=gemini_api_key)
         
-        # Drive認証
-        token_path = '/app/token.json'
-        credentials_path = '/app/credentials.json'
+        # Drive認証 環境変数から取得
+        credentials_path = os.environ('GOOGLE_CREDENTIALS_PATH')
+        token_path = os.environ('GOOGLE_TOKEN_PATH')
+
+
         if os.path.exists(token_path):
             from google.oauth2.credentials import Credentials
             creds = Credentials.from_authorized_user_file(token_path, ['https://www.googleapis.com/auth/drive'])
