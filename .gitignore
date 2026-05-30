@@ -1,2 +1,5 @@
 /venv
 /backend/__pycache__
+.env
+backend/credentials.json
+backend/token.json

@@ -27,15 +27,16 @@ services:
     depends_on:
       - db
     environment:
-#      DATABASE_URL: "host=db port=5432 dbname=mydb user=user password=pass"
-      DATABASE_URL: "postgresql://user:pass@db:5432/mydb"
-      GEMINI_API_KEY: "google-api-key" # githubにあげるとセキュリティの観点で問題が発生するため
-      DRIVE_FOLDER_ID: "1obk9WiQP14WxI__4_eOC0d4Yn2ymoQMb"
-      GOOGLE_CREDENTIALS_PATH: "/app/credentials.json"
-      GOOGLE_TOKEN_PATH: "/app/token.json"
+      - DATABASE_URL=${DATABASE_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DRIVE_FOLDER_ID=${DRIVE_FOLDER_ID}
+      - GOOGLE_CREDENTIALS_PATH=${GOOGLE_CREDENTIALS_PATH}
+      - GOOGLE_TOKEN_PATH=${GOOGLE_TOKEN_PATH}
+
       # Flaskをデバッグモードにする（これでホットリロードが有効になります）
-      FLASK_ENV: development
-      FLASK_DEBUG: "1"                                            # 開発時は 1 (有効)、本番時は 0 にする
+      # 開発時は 1 (有効)、本番時は 0 にする
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
 
     ports:
       - "5000:5000"
