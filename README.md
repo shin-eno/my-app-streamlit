@@ -211,3 +211,24 @@ curl -X POST http://localhost:5000/api/receipts/batch-run
 
 # powershellで実行する場合
 Invoke-RestMethod -Uri "http://localhost:5000/api/receipts/batch-run" -Method Post
+
+
+
+# backendのフォルダ構成
+
+backend/
+│
+├── app.py                      # ルーティングをBlueprint登録する軽量なエントリーポイント
+│
+├── routes/                     # [APIルーティング]
+│   ├── auth_routes.py          # ユーザー管理、ログイン、パスワードリセット
+│   └── receipt_routes.py       # レシート保存、カテゴリ、バッチ実行
+│
+├── repository/                 # [DB操作層 (SQL)]
+│   ├── user_repository.py      # usersテーブル等の操作（共通db_utilsを適用）
+│   └── receipt_repository.py   # receiptsテーブル等の操作（共通db_utilsを適用）
+│
+└── utils/                      # [共通ヘルパー・ユーティリティ]
+    ├── db_utils.py             # 【新規】共通化した get_db_connection() を保持
+    ├── image_utils.py          # 画像リサイズ、一意ファイル名生成
+    └── mail_utils.py           # パスワードリセット等のメール送信
