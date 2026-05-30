@@ -43,10 +43,40 @@ CREATE TABLE IF NOT EXISTS menu_permissions (
 --
 --　パスワードリセット管理情報
 -- 
-CREATE TABLE password_resets (
+CREATE TABLE IF NOT EXISTS password_resets (
     user_id VARCHAR(5) NOT NULL,
     token TEXT NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     PRIMARY KEY (user_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+
+--
+--　カテゴリ情報
+-- 
+CREATE TABLE IF NOT EXISTS categories (
+    id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL
+);
+
+-- 
+-- レシート情報
+-- 
+CREATE TABLE IF NOT EXISTS public.receipts (
+  id serial not null
+  , shop_name text
+  , pay_date text
+  , pay_time text
+  , total_pay integer
+  , category_id integer
+  , file_path text
+  , google_drive_file_id text
+  , is_processed boolean default false
+  , batch_status text
+  , created_at timestamp(6) without time zone default CURRENT_TIMESTAMP
+  , updated_at timestamp(6) without time zone default CURRENT_TIMESTAMP
+  , deleted_at TIMESTAMP
+  , primary key (id)
+);
+

@@ -21,12 +21,14 @@ services:
     restart: always
     volumes:
       - ./backend:/app
+      - ./backend/credentials.json:/app/credentials.json
+      - ./backend/token.json:/app/token.json
     depends_on:
       - db
     environment:
 #      DATABASE_URL: "host=db port=5432 dbname=mydb user=user password=pass"
       DATABASE_URL: "postgresql://user:pass@db:5432/mydb"
-
+      GEMINI_API_KEY: "AIzaSyAEzJH7K8IlgtXc0n1TFupAwIhdPtbSC2M"
       # Flaskをデバッグモードにする（これでホットリロードが有効になります）
       FLASK_ENV: development
       FLASK_DEBUG: "1"
