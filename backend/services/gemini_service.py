@@ -1,8 +1,11 @@
 import os
 import re
 import json
+import logging
 from google import genai
 from google.genai import types
+
+logger = logging.getLogger(__name__)
 
 class GeminiService:
     """Gemini 2.0 API を用いた画像・マルチモーダル解析を担当するサービス oily クラス"""

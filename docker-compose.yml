@@ -32,11 +32,12 @@ services:
       - DRIVE_FOLDER_ID=${DRIVE_FOLDER_ID}
       - GOOGLE_CREDENTIALS_PATH=${GOOGLE_CREDENTIALS_PATH}
       - GOOGLE_TOKEN_PATH=${GOOGLE_TOKEN_PATH}
+      - UPLOAD_FOLDER=${UPLOAD_FOLDER}
 
       # Flaskをデバッグモードにする（これでホットリロードが有効になります）
       # 開発時は 1 (有効)、本番時は 0 にする
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
+      - FLASK_ENV=${FLASK_ENV}
+      - FLASK_DEBUG=${FLASK_DEBUG}
 
     ports:
       - "5000:5000"

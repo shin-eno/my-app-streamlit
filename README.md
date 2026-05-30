@@ -232,3 +232,16 @@ backend/
     ├── db_utils.py             # 【新規】共通化した get_db_connection() を保持
     ├── image_utils.py          # 画像リサイズ、一意ファイル名生成
     └── mail_utils.py           # パスワードリセット等のメール送信
+
+
+
+
+### ロギングの書き方
+import logging
+logger = logging.getLogger(__name__)
+
+(例)
+logger.debug(f"Google Driveへのアップロードを開始します。ファイル: {filename}")
+logger.info(f"Google Driveへのアップロードを開始します。ファイル: {filename}")
+logger.error(f"Google Driveへのアップロードを開始します。ファイル: {filename}")
+logger.critical(f"Google Driveへのアップロードを開始します。ファイル: {filename}")

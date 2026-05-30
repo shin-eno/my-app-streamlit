@@ -1,8 +1,11 @@
 import os
 import io
+import logging
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
+
+logger = logging.getLogger(__name__)
 
 class GoogleDriveService:
     """Google Drive APIとの通信および認証を管理するサービス oily クラス"""
@@ -28,6 +31,7 @@ class GoogleDriveService:
             from google.oauth2.credentials import Credentials
             creds = Credentials.from_authorized_user_file(self.token_path, ['https://www.googleapis.com/auth/drive'])
         # 2. 予備：token.jsonがない場合は、サービスアカウント（credentials.json）での認証を試行
+
         else:
             creds = service_account.Credentials.from_service_account_file(
                 self.credentials_path, 
@@ -74,7 +78,8 @@ class GoogleDriveService:
             'name': filename,
             'parents': [self.folder_id] if self.folder_id else []  # 保存先フォルダを指定
         }
-        
+
+        logger.debug(f"Google Driveへのアップロードを開始します。ファイル: {filename}")
         # アップロードするファイルのメディア設定（JPEGやPNGに対応できるよう、汎用的なストリーム形式を指定）
         media = MediaFileUpload(file_path, mimetype='application/octet-stream', resumable=True)
         
@@ -86,4 +91,6 @@ class GoogleDriveService:
         ).execute()
         
         # 生成された一意のファイルIDを返却
+        logger.info(f"アップロードしたファイルIDを返却 drive_file_get(id): {drive_file.get('id')}")
+
         return drive_file.get('id')
