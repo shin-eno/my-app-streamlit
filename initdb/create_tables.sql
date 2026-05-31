@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS categories (
 -- 
 -- レシート情報
 -- 
-CREATE TABLE IF NOT EXISTS public.receipts (
+CREATE TABLE IF NOT EXISTS receipts (
   id serial not null
   , shop_name text
   , pay_date text
@@ -78,5 +78,18 @@ CREATE TABLE IF NOT EXISTS public.receipts (
   , updated_at timestamp(6) without time zone default CURRENT_TIMESTAMP
   , deleted_at TIMESTAMP
   , primary key (id)
+);
+
+-- 
+-- webスクレイピングログ
+-- 
+CREATE TABLE IF NOT EXISTS scraping_logs (
+    id SERIAL PRIMARY KEY,
+    target_url TEXT NOT NULL,
+    download_name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL, -- 'RUNNING', 'SUCCESS', 'FAILED'
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
