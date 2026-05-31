@@ -51,3 +51,25 @@ class ScrapingRepository:
             logger.error(f"ステータス更新に失敗しました: {e}", exc_info=True)
         finally:
             conn.close()
+
+    @staticmethod
+    def get_recent_logs(limit=10):
+        """過去指定された件数分の実行履歴を降順（新しい順）で取得する"""
+        query = """
+            SELECT id, target_url, download_name, status, error_message, created_at, updated_at
+            FROM scraping_logs
+            ORDER BY created_at DESC
+            LIMIT %s;
+        """
+        conn = ScrapingRepository._get_connection()
+        try:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, (limit,))
+                rows = cur.fetchall()
+                # 辞書型のリストに変換して返却
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"履歴の取得SQLでエラーが発生しました: {e}", exc_info=True)
+            raise e
+        finally:
+            conn.close()
