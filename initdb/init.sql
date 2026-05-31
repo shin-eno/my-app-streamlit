@@ -5,7 +5,8 @@ INSERT INTO menu_permissions (page_title, file_path, icon, section_name, is_admi
 ('ユーザー登録', 'views/9_User_Registration.py', '👤', '管理設定', TRUE, 30),
 ('パスワード変更', 'views/3_Password_Change.py', '🔑', 'アカウント管理', FALSE, 40),
 ('レシート登録', 'views/5_Receipt_Manager.py', '🧾', '計上', FALSE, 40),
-('webスクレイピング', 'views/6_Scraping_Manager.py', '📷', 'ツール', FALSE, 60)
+('webスクレイピング', 'views/6_Scraping_Manager.py', '📷', 'ツール', FALSE, 60),
+('リンク集', 'views/7_Link_Manager.py', '🔗', '設定', FALSE, 60)
 ;
 
 -- カテゴリ情報

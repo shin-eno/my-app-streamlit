@@ -7,6 +7,7 @@ from flask import Flask
 from routes.auth_routes import auth_bp
 from routes.receipt_routes import receipt_bp
 from routes.scraping_routes import scraping_bp
+from routes.link_routes import link_bp
 
 # -------------------------------------------------------------
 # 📄 ロギング（ログ出力）の一括初期設定
@@ -58,3 +59,4 @@ for var in REQUIRED_ENV_VARS:
 app.register_blueprint(auth_bp)
 app.register_blueprint(receipt_bp)
 app.register_blueprint(scraping_bp)
+app.register_blueprint(link_bp)

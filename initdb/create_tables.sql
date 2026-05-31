@@ -93,3 +93,17 @@ CREATE TABLE IF NOT EXISTS scraping_logs (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 
+-- サイトリンク集
+-- 
+CREATE TABLE IF NOT EXISTS site_link_collect (
+    id SERIAL PRIMARY KEY,
+    site_name VARCHAR(100) NOT NULL,
+    url TEXT NOT NULL,
+    category VARCHAR(50),
+    display_order INTEGER DEFAULT 10,
+    description TEXT,
+    delete_flg BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
